@@ -1,0 +1,8 @@
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Binary data files
+*.pickle
+
+# Rmd files (auto generated, don't need to commit)
+*.Rmd
