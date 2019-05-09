@@ -22,14 +22,17 @@ Exploration of the United States Social Security Administration babynames datase
 
 As the babynames package is in R, and I generally prefer Python, I've used the [rpy2](https://rpy2.bitbucket.io) library to pull in the appropriate portions of babynames
 
+### Table of Contents:
+* [Load Baby Names Data](#load_data)
+* [Prediction with Prophet](#prophet)
+* [Prediction with ARIMA](#arima)
+* [Combine names based on pronounciation](#sound_analysis)
+* [Name popularity](#popularity)
+* [Gender overlap in naming](#gender)
+
 
 ### To Do:
 
-* Combine name counts based on soundex or metaphone algorithm - possibly using [Fuzzy](https://github.com/yougov/Fuzzy) or [Jellyfish](https://github.com/jamesturk/jellyfish)
-* Check if name is mostly one gender or another
-* Calculate probability that child with name X will have 1 or more other children with the same name in a class of 21 (number selected based on data at https://nces.ed.gov/fastfacts/display.asp?id=28, though only has public schools from 2011-2012, so may be outdated)
-  * As children enter school based on birthdate around a cutoff date, would need to consider +/- 2 years
-  * Should also consider regional popularity, but where to get that data?
 * Compare ARIMA to Prophet for forecast - As Prophet seems to be focused on more frequent data, I'm not convinced it works well with low resolution/infrequent data such as this yearly name data. Of course, I may just not understand how to properly specify parameters to get it to work right. Some URLs with more information regarding ARIMA in python:
   * https://machinelearningmastery.com/arima-for-time-series-forecasting-with-python/
   * https://blog.exploratory.io/is-prophet-better-than-arima-for-forecasting-time-series-fa9ae08a5851
@@ -75,6 +78,13 @@ sns.set_style("ticks", {
 })
 sns.set_context("notebook")
 ```
+
+<a id='load_data'></a>
+
+
+### Loading the name data
+
+Summary of data available in the R package [babynames](http://hadley.github.io/babynames/):
 
 **babynames:** For each year from 1880 to 2017, the number of children of each sex given each name. All names with more than 5 uses are given. (Source: http://www.ssa.gov/oact/babynames/limits.html)
 
@@ -124,6 +134,13 @@ a_plt.fig.set_size_inches(7.5, 5)
 Suppose your selected name is Sophia and soundalikes
 
 
+<a id='prophet'></a>
+
+
+### Prophet for prediction of naming trends
+
+Prophet is an R/Python library available from: https://facebook.github.io/prophet/
+
 The input to Prophet is always a dataframe with two columns: **ds** and **y**. The ds (datestamp) column should be of a format expected by Pandas, ideally YYYY-MM-DD for a date or YYYY-MM-DD HH:MM:SS for a timestamp. The y column must be numeric, and represents the measurement we wish to forecast.
 
 ```python
@@ -159,9 +176,27 @@ df.head()
 df.shape
 ```
 
+<a id='arima'></a>
+
+
+### ARIMA for prediction of naming trends
+
+```python
+# to do - add this section
+```
+
+<a id='sound_analysis'></a>
+
+
 ### Combine names based on how they sound
 
 As each entry in the babynames dataset is based on spelling, evaluate different sound based algorithms to see how to combine/reduce number of names.
+
+See the [soundconflation](soundconflation.ipynb) notebook for analysis of various phonetic algorithms.
+
+End result is that the Abydos python library has lots of options and I like the Beider & Morse algorithm the best for the purposes of this analysis.
+
+For combination of names based on Beider Morse algorithm, will just look at most recent year.
 
 
 #### Export names file for testing/evaluation of phonetic algorithms
@@ -176,10 +211,7 @@ with open('ssn_names_only.pickle', 'wb') as f:
     pickle.dump(names, f)
 ```
 
-#### See the [soundconflation](soundconflation.ipynb) notebook for analysis of various phonetic algorithms.
-
-End result is that the Abydos python library has lots of options and I like the Beider & Morse algorithm the best for the purposes of this analysis.
-
+Build the data frame of names and beidermorse values
 
 ```python
 from abydos import phonetic as ap
@@ -225,104 +257,10 @@ checklist = names[names.name == 'Sofia'].beidermorse.values[0].split()
 def check_fn(input):
     return any(x in input.split() for x in checklist)
 
-names[names.beidermorse.map(check_fn)]
+names[names.beidermorse.map(check_fn)].head()
 ```
 
-```python
-# setup test dataset
-alt = df[df.year == 1990].sample(n=10, random_state=2213).copy()
-alt.shape
-```
-
-```python
-alt.sort_values(['year', 'sex', 'name'], inplace=True)
-```
-
-```python
-alt['counted'] = False
-alt['alt_n'] = 0
-alt['alt_prop'] = 0.0
-```
-
-```python
-# add another year
-alt = alt.append({'year': 1991,
-                  'sex': 'F',
-                  'name': 'Michael',
-                  'n': 42,
-                  'prop': 0.000030,
-                 }, ignore_index = True)
-# add similar names to existing year
-alt = alt.append({'year': 1990,
-                  'sex': 'F',
-                  'name': 'Mychael',
-                  'n': 42,
-                  'prop': 0.000030,
-                 }, ignore_index = True)
-# add similar names, different gender to existing year
-alt = alt.append({'year': 1990,
-                  'sex': 'M',
-                  'name': 'Mychael',
-                  'n': 42,
-                  'prop': 0.000030,
-                 }, ignore_index = True)
-# if added too many times
-# alt = alt.drop(alt[(alt.name == 'Michael') & (alt.n == 42)].index)
-# alt = alt.drop(alt[(alt.name == 'Mychael') & (alt.n == 42)].index)
-```
-
-```python
-alt['counted'] = False
-alt['alt_n'] = 0
-alt['alt_prop'] = 0.0
-
-# process each row of dataframe
-def create_alt_n(row):
-    print(row['name'])
-
-    # should do no further processing if this row has already been counted
-    if (row['counted'] == True):
-        return
-
-    # find matching names
-    checklist = names[names.name == row['name']].beidermorse.values[0].split()
-    find = lambda i: any(x in i for x in checklist)
-    found = names[names.bmset.map(find)].name
-    
-    # aggregate count, excluding counted names, for all found names into alt_name
-    alt.loc[(alt.name == row['name']) &
-            (alt.year == row.year) &
-            (alt.sex == row.sex) ,
-            'alt_n'] = alt[(alt.name.isin(found)) & 
-                           (alt.year == row.year) &
-                           (alt.sex == row.sex) &
-                           (alt.counted == False)]['n'].sum()
-    
-    # set counted flag for found names in group
-    # ? how to update just group ?
-    alt.loc[(alt.name.isin(found)) & (alt.year == row.year) & (alt.sex == row.sex), 'counted'] = True
-
-gdf = alt.groupby(['year', 'sex'])
-for name, group in gdf:
-    g = group.sort_values('n', ascending=False).copy()
-    g.apply(create_alt_n, axis=1)
-
-# create alt_prop
-def create_alt_prop(row):
-    alt.loc[(alt.name == row['name']) &
-            (alt.year == row.year) &
-            (alt.sex == row.sex) ,
-            'alt_prop'] = row['alt_n'] / gsum
-
-for name, group in gdf:
-    print(name)
-    gsum = group['alt_n'].sum()
-    group.apply(create_alt_prop, axis=1)    
-    
-alt
-```
-
-The above sample data set appears to be correct; now run process for all years
+Create key-value version of Beider Morse mapping - found this improves performance
 
 ```python
 def f(name, bmset):
@@ -331,11 +269,6 @@ kv_names = pd.concat([f(n,b) for n, b in zip(names['name'], names['bmset'])])
 ```
 
 ```python
-# this is very slow look at optimizing/parallelizing
-# see: https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby
-# potentially look at https://github.com/jmcarpenter2/swifter
-#   see realted blog post: https://medium.com/@jmcarpenter2/swiftapply-automatically-efficient-pandas-apply-operations-50e1058909f9
-
 def calc_sound_totals(df_in):
     df_out = df_in.copy()
     df_out['counted'] = False
@@ -348,16 +281,16 @@ def calc_sound_totals(df_in):
     # process each row of dataframe
     def create_df_out_n(row):
         # should do no further processing if this row has already been counted
-        if (row['counted'] == True):
+        if (df_out.loc[(df_out.name == row['name']) &
+                (df_out.year == row.year) &
+                (df_out.sex == row.sex) ,
+                'counted'].all() == True):
             return
 
-        #print('evaluating ', row['name'], ' ------------- ', row['counted'])
         # find matching names        
         checklist = filt_names[filt_names.name == row['name']].beidermorse.values
         found = filt_names[filt_names.beidermorse.isin(checklist)]['name'].unique()
         
-        #print('after found section:\n', df_out.loc[(df_out.name.isin(found)) & (df_out.year == row.year) & (df_out.sex == row.sex)])
-
         # aggregate count, excluding counted names, for all found names into df_out_name
         df_out.loc[(df_out.name == row['name']) &
                 (df_out.year == row.year) &
@@ -367,14 +300,10 @@ def calc_sound_totals(df_in):
                                (df_out.sex == row.sex) &
                                (df_out.counted == False)]['n'].sum()
         
-        #print('after sum section:\n', df_out.loc[(df_out.name.isin(found)) & (df_out.year == row.year) & (df_out.sex == row.sex)])
-
         # set counted flag for found names in group
         # ? how to update just group ?
         df_out.loc[(df_out.name.isin(found)) & (df_out.year == row.year) & (df_out.sex == row.sex), 'counted'] = True
         df_out.loc[(df_out.name.isin(found)) & (df_out.year == row.year) & (df_out.sex == row.sex), 'mapped_to'] = row['name']
-        
-        #print('end of function:\n', df_out.loc[(df_out.name.isin(found)) & (df_out.year == row.year) & (df_out.sex == row.sex)])
 
     start = timer()
     gdf = df_out.groupby(['year', 'sex'])
@@ -403,16 +332,137 @@ def calc_sound_totals(df_in):
     return df_out
 ```
 
+This process takes about 20 minutes... While this is improved, need to improve more; seems parallelization is the next step
+
 ```python
+alt = df[df.year == 2017].copy()
 alt['counted'] = False
 alt['alt_n'] = 0
 alt['alt_prop'] = 0.0
-
+alt.head()
 out = calc_sound_totals(alt)
 ```
 
 ```python
-out.sort_values(['year', 'sex', 'name'])
+out.sort_values(['year', 'sex', 'name']).head()
+```
+
+```python
+out[out.name.isin(['Abigail', 'Sophia', 'Sofia', 'Olivia', 'Avery'])].head()
+```
+
+```python
+len(out.mapped_to.unique())
+```
+
+<a id='popularity'></a>
+
+
+### Name popularity
+
+Primary/Secondary school is the location most children will interact with a large number of their birth cohort. While many schools use on or around September 1 for the kindergarten cutoff age, it can actually vary quite a bit - see http://ecs.force.com/mbdata/MBQuest2RTanw?rep=KK3Q1802
+
+In highschool, college, and adulthood interactions are with a broader range of ages than in early school years, so a larger time period might be more appropriate for that type of analysis.
+
+To Do:
+* Should consider regional distributions of names, but where to get that data?
+* Should consider ethnic popularity by region, but where to get that data?
+
+National school class size: 21
+
+Source: https://nces.ed.gov/fastfacts/display.asp?id=28, though only has public schools from 2011-2012, so is outdated
+
+National Average Public School size: 503
+
+Source: https://www.publicschoolreview.com/average-school-size-stats/national-data
+
+Suppose we want to see how many other kids would have names like 'Sophia':
+
+```python
+from scipy.stats import binom
+
+# p = probability/proportion of name
+# n = size of group to consider
+def calc_dup_prob(p, n):
+    k = 2
+    ans = 0.0
+    for x in range(k, n + 1):
+        ans += binom.pmf(x, n, p)
+        # alternatively see https://en.wikipedia.org/wiki/Binomial_distribution#Cumulative_distribution_function
+        # comb(n, x) * p**x * (1 - p)**(n-x))
+    return ans
+
+school_size = 503
+class_size = 21
+
+print("Probability of child with same name in a given class: ", calc_dup_prob(out[out.name == 'Sophia'].alt_prop.sum(), class_size))
+print("Probability of child with same name in a given school: ", calc_dup_prob(out[out.name == 'Sophia'].alt_prop.sum(), school_size))
+```
+
+<a id='gender'></a>
+
+
+### Check if name is mostly one gender or is there some amount of overlap
+
+Gender overlap levels were selected to approximately balance the high and medium overlap groups
+
+```python
+out[(out.name == 'Sophia') & (out.mapped_to == 'Sophia')]
+```
+
+```python
+mnames = out[(out.alt_n > 0) & (out.sex == 'M')]
+fnames = out[(out.alt_n > 0) & (out.sex == 'F')]
+both = out[out.name.isin(set(mnames.mapped_to.unique()) & set(fnames.mapped_to.unique()))].copy()
+print('Number of names that are both gender:', len(both)//2)
+```
+
+```python
+both.head()
+```
+
+```python
+# # to evaluate all names and report values
+# for name in both.name.unique():
+#     fcount = both[(both.name == name) & (both.sex == 'F')].alt_n.values[0]
+#     mcount = both[(both.name == name) & (both.sex == 'M')].alt_n.values[0]
+#     if ((fcount <= (mcount + mcount * .20)) & (fcount >= (mcount - mcount * .20))):
+#         print('name: ', name, 'has high gender overlap')
+#     elif ((fcount <= (mcount + mcount * .40)) & (fcount >= (mcount - mcount * .40))):
+#         print('name: ', name, 'has medium gender overlap')
+#     else:
+#         print('name: ', name, 'has low gender overlap')
+        
+def gender_eval(name):
+    fcount = both[(both.name == name) & (both.sex == 'F')].alt_n.values[0]
+    mcount = both[(both.name == name) & (both.sex == 'M')].alt_n.values[0]
+    if ((fcount <= (mcount + mcount * .40)) & (fcount >= (mcount - mcount * .40))):
+        return 'high'
+    elif ((fcount <= (mcount + mcount * .70)) & (fcount >= (mcount - mcount * .70))):
+        return 'medium'
+    else:
+        return 'low'
+
+both['gender_overlap'] = both.name.apply(gender_eval)
+both.gender_overlap.value_counts()
+```
+
+```python
+# look at most common highly overlapping names
+samp = both[both.gender_overlap == 'high'].sort_values('alt_n', ascending=False).head(5).name
+both[both.name.isin(samp)].sort_values(['name', 'sex'])
+```
+
+```python
+# random sample of medium overlapping names
+samp = samp = both[both.gender_overlap == 'medium'].name.sample(n=3, random_state=2213)
+both[both.name.isin(samp)].sort_values(['name', 'sex'])
+```
+
+```python
+# random sample of low overlapping names
+samp = samp = both[both.gender_overlap == 'low'].name.sample(n=3, random_state=2213)
+both[both.name.isin(samp)].sort_values(['name', 'sex'])
 ```
 
 ```python
