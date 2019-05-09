@@ -14,6 +14,14 @@ jupyter:
 
 ## Explorations in how to improve performance
 
+Calculating counts based on common spellings/pronunciations of similar names is very slow look at optimizing/parallelizing.
+
+* see: https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby
+* potentially look at https://github.com/jmcarpenter2/swifter
+* see realted blog post: https://medium.com/@jmcarpenter2/swiftapply-automatically-efficient-pandas-apply-operations-50e1058909f9
+
+
+
 ```python
 import pandas as pd
 import numpy as np
