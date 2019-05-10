@@ -332,7 +332,7 @@ def calc_sound_totals(df_in):
     return df_out
 ```
 
-This process takes about 20 minutes... While this is improved, need to improve more; seems parallelization is the next step
+This process takes about 20 minutes... While this is the improved version, need to improve much more; seems parallelization is the next step
 
 ```python
 alt = df[df.year == 2017].copy()
@@ -340,7 +340,17 @@ alt['counted'] = False
 alt['alt_n'] = 0
 alt['alt_prop'] = 0.0
 alt.head()
-out = calc_sound_totals(alt)
+
+filename = 'calc_sound_totals.pickle'
+
+if os.path.isfile(filename):
+    with open(filename, 'rb') as f:
+        out = pickle.load(f)
+else:
+    out = calc_sound_totals(alt)
+
+    with open(filename, 'wb') as f:
+        pickle.dump(out, f)
 ```
 
 ```python
