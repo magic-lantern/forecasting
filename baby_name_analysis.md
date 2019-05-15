@@ -55,6 +55,7 @@ import matplotlib.pyplot as plt
 
 import os
 import pickle
+import itertools
 
 from timeit import default_timer as timer
 
@@ -105,13 +106,11 @@ if os.path.isfile(bn_filename):
 else:
     bn = importr('babynames')
     orig_df = bn.__rdata__.fetch('babynames')['babynames']
+    # fix some data types
+    orig_df['year'] = orig_df.year.astype('int32')
 
     with open(bn_filename, 'wb') as f:
         pickle.dump(orig_df, f)
-```
-
-```python
-orig_df.head()
 ```
 
 ```python
@@ -183,6 +182,237 @@ df.shape
 
 ```python
 # to do - add this section
+import statsmodels
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import coint, adfuller
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.arima_model import ARIMA
+
+from matplotlib.pylab import rcParams
+from pandas.plotting import autocorrelation_plot
+```
+
+```python
+rcParams['figure.figsize'] = 15, 12
+```
+
+```python
+# select counts without respect to gender
+#a = orig_df[(orig_df.name.isin(['Sophia', 'Sofia'])) & (orig_df.year >= 1980)].copy()
+a = orig_df[(orig_df.name.isin(['Sophia', 'Sofia']))].copy()
+#a = orig_df[(orig_df.name.isin(['Olivia']))].copy()
+a['year'] = pd.to_datetime(a['year'], format='%Y')
+ts = a.groupby(['year'])['n'].sum()
+```
+
+```python
+ts.head()
+```
+
+```python
+# don't have monthly data, so this doesn't work
+#decomposition = seasonal_decompose(ts)
+```
+
+```python
+def TestStationaryPlot(ts, plot_label = None):
+    rol_mean = ts.rolling(window = 12, center = False).mean()
+    rol_std = ts.rolling(window = 12, center = False).std()
+    
+    plt.plot(ts, color = 'blue',label = 'Original Data')
+    plt.plot(rol_mean, color = 'red', label = 'Rolling Mean')
+    plt.plot(rol_std, color ='black', label = 'Rolling Std')
+    plt.xticks(fontsize = 25)
+    plt.yticks(fontsize = 25)
+    
+    plt.xlabel('Time in Years', fontsize = 25)
+    plt.ylabel('Total Emissions', fontsize = 25)
+    plt.legend(loc='best', fontsize = 25)
+    if plot_label is not None:
+        plt.title('Rolling Mean & Standard Deviation (' + plot_label + ')', fontsize = 25)
+    else:
+        plt.title('Rolling Mean & Standard Deviation', fontsize = 25)
+    plt.show(block= True)
+    
+def TestStationaryAdfuller(ts, cutoff = 0.01):
+    ts_test = adfuller(ts, autolag = 'AIC')
+    ts_test_output = pd.Series(ts_test[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
+    
+    for key,value in ts_test[4].items():
+        ts_test_output['Critical Value (%s)'%key] = value
+    print(ts_test_output)
+    
+    if ts_test[1] <= cutoff:
+        print("Strong evidence against the null hypothesis, reject the null hypothesis. Data has no unit root, hence it is stationary")
+    else:
+        print("Weak evidence against null hypothesis, time series has a unit root, indicating it is non-stationary ")
+```
+
+```python
+TestStationaryPlot(ts, 'original')
+```
+
+```python
+# while most of the data is farily flat for the time period shown (1880 - 1980)
+#visual inspection of data doesn't seem to be stationary
+TestStationaryAdfuller(ts)
+```
+
+```python
+# this is what is looked at for stationarity (is that a word?)
+#12*(nobs/100)^{1/4}
+nobs = len(ts)
+12*(nobs/100)**(1/4)
+```
+
+```python
+moving_avg = ts.rolling(5).mean()
+moving_avg_diff = ts - moving_avg
+moving_avg_diff.head(13)
+```
+
+```python
+moving_avg_diff.dropna(inplace=True)
+TestStationaryPlot(moving_avg_diff, 'moving')
+TestStationaryAdfuller(moving_avg_diff)
+```
+
+### Autocorrelation Plots
+
+When looking at all data available (1880 to present) it appears that the current value seems to be highly correlated with the previous 14 or so values; closer to the present value is more correlated. Tested a few different names and correlation lag may be as high as 20.
+
+```python
+fig, ax = plt.subplots(figsize = (15, 5))
+ax = autocorrelation_plot(ts, ax=ax)
+#plt.vlines(range(0, 121, 2), -1, 1, linestyle="dashed")
+```
+
+These are autocorrelation plots from Statsmodel
+
+```python
+fig = plt.figure(figsize=(12,8))
+ax1 = fig.add_subplot(211)
+fig = sm.graphics.tsa.plot_acf(ts, lags=50, ax=ax1)
+ax2 = fig.add_subplot(212)
+fig = sm.graphics.tsa.plot_pacf(ts, lags=50, ax=ax2)
+```
+
+```python
+model = ARIMA(ts, order=(12,1,0))
+model_fit = model.fit(disp=0)
+print(model_fit.summary())
+```
+
+```python
+# plot residual errors
+residuals = pd.DataFrame(model_fit.resid)
+residuals.plot()
+plt.show()
+residuals.plot(kind='kde')
+plt.show()
+print(residuals.describe())
+```
+
+```python
+type(ts)
+```
+
+```python
+p = d = q = range(0, 3) # Define the p, d and q parameters to take any value between 0 and 2
+pdq = list(itertools.product(p, d, q)) # Generate all different combinations of p, q and q triplets
+```
+
+```python
+a = orig_df[(orig_df.name.isin(['Sophia', 'Sofia']))].copy()
+#a = orig_df[(orig_df.name.isin(['Olivia']))].copy()
+#a['year'] = pd.to_datetime(a['year'], format='%Y')
+ts = a.groupby(['year'])['n'].sum()
+```
+
+```python
+ts.to_frame().asfreq(freq='A', a)
+```
+
+```python
+index = pd.date_range('1/1/2000', periods=4, freq='T')
+>>> series = pd.Series([0.0, None, 2.0, 3.0], index=index)
+>>> df = pd.DataFrame({'s':series})
+>>> df
+```
+
+```python
+ts.asfreq(freq='Y')
+```
+
+```python
+%%time
+
+aic_results = []
+for param in pdq:
+    try:
+        mod = ARIMA(ts,
+                    order=param,
+                    freq='AS-JAN')
+        # some methods fail to converge; increasing max iterations helps
+        # some methods have verbose output
+        #results = mod.fit(maxiter=200, method='nm')
+        # defaults appear to ignore maxiter
+        results = mod.fit()
+        print('ARIMA:{} - AIC:{}'.format(param, results.aic))
+#             if results.mle_retvals is not None and results.mle_retvals['converged'] == False:
+#                 print('if block', results.mle_retvals)
+#        aic_results.append(results.aic)
+    except Exception as e:
+        print('exception', e)
+        continue
+#aic_results.sort()
+#print('Best AIC found: ', aic_results[0])
+```
+
+```python
+
+```
+
+```python
+results.aic
+```
+
+from pandas import read_csv
+from pandas import datetime
+from pandas import DataFrame
+from statsmodels.tsa.arima_model import ARIMA
+from matplotlib import pyplot
+
+def parser(x):
+	return datetime.strptime('190'+x, '%Y-%m')
+
+series = read_csv('shampoo-sales.csv', header=0, parse_dates=[0], index_col=0, squeeze=True, date_parser=parser)
+# fit model
+model = ARIMA(series, order=(5,1,0))
+model_fit = model.fit(disp=0)
+print(model_fit.summary())
+# plot residual errors
+residuals = DataFrame(model_fit.resid)
+residuals.plot()
+pyplot.show()
+residuals.plot(kind='kde')
+pyplot.show()
+print(residuals.describe())
+
+```python
+
+```
+
+```python
+
+```
+
+```python
+
+```
+
+```python
+
 ```
 
 <a id='sound_analysis'></a>
