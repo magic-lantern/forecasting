@@ -5,14 +5,15 @@ jupyter:
     text_representation:
       extension: .md
       format_name: markdown
-      format_version: '1.0'
-      jupytext_version: 1.0.5
+      format_version: '1.1'
+      jupytext_version: 1.1.2
   kernelspec:
     display_name: Python 3
     language: python
     name: python3
 ---
 
+<!-- #region -->
 # Name Analysis and forecasting
 
 Exploration of the United States Social Security Administration babynames dataset made available via R package [babynames](http://hadley.github.io/babynames/).
@@ -25,6 +26,22 @@ Exploration of the United States Social Security Administration babynames datase
 
 As the babynames package is in R, and I generally prefer Python, I've used the [rpy2](https://rpy2.bitbucket.io) library to pull in the appropriate portions of babynames
 
+## Setup
+
+All required packages should be in the first code cell. If you use conda, you likely have most requirements already met. Some specific steps I had to follow from my existing conda environment:
+
+```
+# do this if you only want rpy2 and already have R installed.
+pip install rpy2
+# otherwise run
+# conda install rpy2
+conda install tzlocal line_profiler
+conda install -c conda-forge fbprophet
+conda install -c conda-forge abydos
+```
+
+For R, make sure you have the package babynames installed by running `install.packages('babynames')` in an R session
+
 ## Table of Contents:
 * [Load Baby Names Data](#load_data)
 * [Prediction with Prophet](#prophet)
@@ -32,7 +49,7 @@ As the babynames package is in R, and I generally prefer Python, I've used the [
 * [Combine names based on pronounciation](#sound_analysis)
 * [Name popularity](#popularity)
 * [Gender overlap in naming](#gender)
-
+<!-- #endregion -->
 
 ## To Do:
 
@@ -128,6 +145,10 @@ df.head()
 ```
 
 ```python
+df.tail()
+```
+
+```python
 tops = df[(df.sex == 'F') & ((df.year >= 2012) & (df.year <= 2017))].sort_values(['year', 'n'], ascending=False).groupby('year', as_index=False).head(20)
 print('top femail names 2012 - 2017 by number of times in top 20 per year')
 print(tops.groupby('name', as_index=False)['n'].count().sort_values('n', ascending=False))
@@ -212,6 +233,7 @@ Although this ARIMA section is more detailed than the Prophet section, my sense 
 Resources I found useful when applying ARIMA:
  * https://www.kaggle.com/magiclantern/co2-emission-forecast-with-python-arima-v2/notebook
  * https://machinelearningmastery.com/arima-for-time-series-forecasting-with-python/
+ * https://stats.stackexchange.com/questions/44992/what-are-the-values-p-d-q-in-arima
 
 ```python
 # to do - add this section
@@ -332,9 +354,9 @@ p = range(0, 20) #max based on plots above
 d = range(0, 3)
 q = range(0, 3)
 
-# p = range(0, 21) #max based on plots above
-# d = range(0, 21)
-# q = range(0, 21)
+p = range(0, 21) #max based on plots above
+d = range(0, 21)
+q = range(0, 21)
 
 pdq = list(itertools.product(p, d, q)) # Generate all different combinations of p, q and q triplets
 
@@ -397,11 +419,6 @@ warnings.filterwarnings('default')
 Parallel version of grid search for faster processing
 
 ```python
-%%time
-
-import warnings
-warnings.filterwarnings('ignore') # ignore warning messages in this cell
-
 def calc_arima(df_in):
     aic_results = pd.DataFrame(columns=['aic', 'param'])
     print('Checking', len(df_in), 'parameters')
@@ -433,12 +450,23 @@ def calc_arima(df_in):
             print('exception', e)
             continue
     return aic_results
+```
+
+```python
+len(pdq)
+```
+
+```python
+%%time
+
+import warnings
+warnings.filterwarnings('ignore') # ignore warning messages in this cell
 
 pdq_input_df = pd.DataFrame(columns=['aic', 'param'])
 pdq_input_df['param'] = pdq
 
-num_processes = psutil.cpu_count(logical=False)
-num_partitions = num_processes * 2 #smaller batches to get more frequent status updates
+num_processes = psutil.cpu_count(logical=False) - 2
+num_partitions = num_processes * 8 #smaller batches to get more frequent status updates
 with Pool(processes=num_processes) as pool:
     df_split = np.array_split(pdq_input_df, num_partitions)
     df_out = pd.concat(pool.map(calc_arima, df_split),ignore_index=True)
@@ -451,6 +479,12 @@ model_fit = model.fit()
 print(model_fit.summary())
 
 warnings.filterwarnings('default')
+```
+
+```python
+num_processes = psutil.cpu_count(logical=False)
+num_partitions = num_processes * 4 #smaller batches to get more frequent status updates
+print(num_processes, num_partitions)
 ```
 
 ```python
