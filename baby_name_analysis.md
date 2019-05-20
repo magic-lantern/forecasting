@@ -69,6 +69,8 @@ from fbprophet import Prophet
 from fbprophet.plot import add_changepoints_to_plot
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
 
 import os
 import pickle
@@ -350,13 +352,9 @@ fig = sm.graphics.tsa.plot_pacf(ts, lags=50, ax=ax2)
 ```
 
 ```python
-p = range(0, 20) #max based on plots above
+p = range(0, 20) #max based on plots above (though not specifically for the currently selected name)
 d = range(0, 3)
 q = range(0, 3)
-
-p = range(0, 21) #max based on plots above
-d = range(0, 21)
-q = range(0, 21)
 
 pdq = list(itertools.product(p, d, q)) # Generate all different combinations of p, q and q triplets
 
@@ -365,10 +363,103 @@ n = .9
 train = ts.head(int(len(ts) * .9))
 ```
 
+<!-- #region -->
+As an exercise, I thought I'd try a more exhaustive grid search. This is very CPU intensive - run time on a 2017 Macbook Pro 15" was a little over 16 hours
+
+End result is quite a it better than the grid search results from the smaller/quicker set of pdq values.
+
+With these pqd parameters
+
+```python
+p = range(0, 21)
+d = range(0, 21)
+q = range(0, 21)
+```
+
+and running the parallel grid search, this is the best model found:
+
+    Best AIC found: 1285.1007195040975 with parameters (17, 7, 20)
+                               Statespace Model Results                           
+    ==============================================================================
+    Dep. Variable:                      n   No. Observations:                  124
+    Model:             SARIMAX(17, 7, 20)   Log Likelihood                -635.197
+    Date:                Sat, 18 May 2019   AIC                           1346.395
+    Time:                        09:52:12   BIC                           1443.840
+    Sample:                    12-31-1880   HQIC                          1385.784
+                             - 12-31-2003                                         
+    Covariance Type:                  opg                                         
+    ==============================================================================
+                     coef    std err          z      P>|z|      [0.025      0.975]
+    ------------------------------------------------------------------------------
+    ar.L1         -4.1069      0.922     -4.452      0.000      -5.915      -2.299
+    ar.L2         -9.6938      3.413     -2.840      0.005     -16.384      -3.004
+    ar.L3        -17.4916      7.477     -2.339      0.019     -32.146      -2.837
+    ar.L4        -26.9092     12.611     -2.134      0.033     -51.626      -2.192
+    ar.L5        -36.6562     18.178     -2.017      0.044     -72.284      -1.028
+    ar.L6        -45.2342     23.416     -1.932      0.053     -91.129       0.661
+    ar.L7        -51.5134     27.658     -1.862      0.063    -105.723       2.696
+    ar.L8        -55.1616     30.470     -1.810      0.070    -114.881       4.558
+    ar.L9        -56.1372     31.828     -1.764      0.078    -118.519       6.245
+    ar.L10       -54.0797     31.769     -1.702      0.089    -116.346       8.187
+    ar.L11       -48.7628     29.972     -1.627      0.104    -107.506       9.981
+    ar.L12       -40.3622     26.283     -1.536      0.125     -91.876      11.151
+    ar.L13       -29.7790     20.715     -1.438      0.151     -70.380      10.822
+    ar.L14       -19.0493     14.046     -1.356      0.175     -46.579       8.480
+    ar.L15       -10.3618      7.890     -1.313      0.189     -25.825       5.102
+    ar.L16        -4.2783      3.633     -1.177      0.239     -11.400       2.843
+    ar.L17        -0.8834      1.104     -0.800      0.424      -3.047       1.280
+    ma.L1         -1.3483      1.294     -1.042      0.298      -3.885       1.189
+    ma.L2         -0.2032      1.761     -0.115      0.908      -3.655       3.249
+    ma.L3         -0.1253      1.199     -0.104      0.917      -2.476       2.225
+    ma.L4         -0.3631      1.127     -0.322      0.747      -2.572       1.845
+    ma.L5         -0.6447      1.138     -0.566      0.571      -2.875       1.586
+    ma.L6          0.7688      1.052      0.731      0.465      -1.293       2.830
+    ma.L7         -0.7535      1.707     -0.441      0.659      -4.099       2.592
+    ma.L8          0.2781      1.159      0.240      0.810      -1.994       2.550
+    ma.L9         -0.8792      1.291     -0.681      0.496      -3.410       1.651
+    ma.L10        -0.0283      1.521     -0.019      0.985      -3.010       2.954
+    ma.L11        -0.6554      1.365     -0.480      0.631      -3.332       2.021
+    ma.L12         0.2506      0.834      0.300      0.764      -1.385       1.886
+    ma.L13         0.1984      1.273      0.156      0.876      -2.297       2.694
+    ma.L14        -0.0043      1.038     -0.004      0.997      -2.040       2.031
+    ma.L15        -0.7166      1.151     -0.623      0.533      -2.972       1.539
+    ma.L16        -0.2745      1.030     -0.267      0.790      -2.293       1.744
+    ma.L17        -0.2298      1.171     -0.196      0.844      -2.526       2.066
+    ma.L18         0.3842      1.140      0.337      0.736      -1.850       2.619
+    ma.L19        -0.6473      1.009     -0.641      0.521      -2.625       1.330
+    ma.L20         0.3517      0.950      0.370      0.711      -1.509       2.213
+    sigma2      9586.4777      0.004   2.45e+06      0.000    9586.470    9586.485
+    ===================================================================================
+    Ljung-Box (Q):                       24.13   Jarque-Bera (JB):                 0.30
+    Prob(Q):                              0.98   Prob(JB):                         0.86
+    Heteroskedasticity (H):               2.55   Skew:                            -0.02
+    Prob(H) (two-sided):                  0.01   Kurtosis:                         3.27
+    ===================================================================================
+
+    Warnings:
+    [1] Covariance matrix calculated using the outer product of gradients (complex-step).
+    [2] Covariance matrix is singular or near-singular, with condition number 1.69e+24. Standard errors may be unstable.
+    CPU times: user 21.8 s, sys: 4.06 s, total: 25.9 s
+    Wall time: 16h 17min 58s
+
+Grid search results were saved with this:
+
+```python
+filename = 'aic_results_gridsearch.pickle'
+
+with open(filename, 'wb') as f:
+    pickle.dump(aic_results, f)
+```
+<!-- #endregion -->
+
 Perform a grid search to find the best ARIMA model
 
 
-# ```python
+
+<!-- #region -->
+Change this from markdown to code to run serial grid search
+
+```python
 %%time
 
 import warnings
@@ -413,7 +504,9 @@ model_fit = model.fit()
 print(model_fit.summary())
 
 warnings.filterwarnings('default')
-# ```
+```
+<!-- #endregion -->
+
 
 
 Parallel version of grid search for faster processing
@@ -453,10 +546,6 @@ def calc_arima(df_in):
 ```
 
 ```python
-len(pdq)
-```
-
-```python
 %%time
 
 import warnings
@@ -465,8 +554,8 @@ warnings.filterwarnings('ignore') # ignore warning messages in this cell
 pdq_input_df = pd.DataFrame(columns=['aic', 'param'])
 pdq_input_df['param'] = pdq
 
-num_processes = psutil.cpu_count(logical=False) - 2
-num_partitions = num_processes * 8 #smaller batches to get more frequent status updates
+num_processes = psutil.cpu_count(logical=False)
+num_partitions = num_processes * 2 #smaller batches to get more frequent status updates
 with Pool(processes=num_processes) as pool:
     df_split = np.array_split(pdq_input_df, num_partitions)
     df_out = pd.concat(pool.map(calc_arima, df_split),ignore_index=True)
@@ -482,10 +571,76 @@ warnings.filterwarnings('default')
 ```
 
 ```python
-num_processes = psutil.cpu_count(logical=False)
-num_partitions = num_processes * 4 #smaller batches to get more frequent status updates
-print(num_processes, num_partitions)
+aic_results.shape
 ```
+
+### Visualize the grid search results
+
+Make sure you have Matplotlib and Jupyter setup correctly for interactive visualizations - it makes it much easier to use. See instructions at:
+
+https://github.com/matplotlib/jupyter-matplotlib
+
+```python
+filename = 'aic_results_gridsearch.pickle'
+
+if os.path.isfile(filename):
+    with open(filename, 'rb') as f:
+        grid_results = pickle.load(f)
+        
+grid_results.head()
+```
+
+```python
+# as some AIC values are very large, it is hard to see where good values are visually;
+# picked this value as it seemed to show some useful information
+grid_results['clipped_aic'] = grid_results.aic.clip(upper=5000)
+```
+
+```python
+# to do an interactive matplotlib chart, uncomment the proper line below
+# for jupyter notebook
+#%matplotlib notebook
+# for jupyter lab
+#%matplotlib widget
+```
+
+```python
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+cmap = matplotlib.cm.get_cmap('viridis_r')
+normalize = matplotlib.colors.Normalize(vmin=min(grid_results['clipped_aic']), vmax=max(grid_results['clipped_aic']))
+colors = [cmap(normalize(value)) for value in grid_results['clipped_aic']]
+
+ax.scatter(grid_results['param'].apply(lambda v: (v[0])),
+           grid_results['param'].apply(lambda v: (v[1])),
+           grid_results['param'].apply(lambda v: (v[2])),
+           s=30,
+           alpha=0.6,
+           edgecolors='w',
+           c=colors
+          )
+
+ax.set_xlabel('ARIMA p')
+ax.set_ylabel('ARIMA d')
+ax.set_zlabel('ARIMA q')
+
+plt.title('Grid Search AIC results')
+
+# Optionally add a colorbar
+cax, _ = matplotlib.colorbar.make_axes(ax)
+cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=normalize)
+
+plt.show()
+```
+
+Through interactive manipulation of the 3-dimensional space, it appears that:
+
+* higher p values (> 10), smaller d values (< 8), and almost any q value gives a low AIC.
+* higher p values (> 10), larger d values (> 10), and lower q values (< 5) give a high AIC.
+
+
+### Now continue on with ARIMA
 
 ```python
 # plot residual errors
