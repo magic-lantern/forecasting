@@ -506,9 +506,6 @@ print(model_fit.summary())
 warnings.filterwarnings('default')
 ```
 <!-- #endregion -->
-
-
-
 Parallel version of grid search for faster processing
 
 ```python
